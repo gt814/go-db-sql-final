@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 )
 
 type ParcelStore struct {
@@ -28,10 +29,10 @@ func (s ParcelStore) Add(p Parcel) (int, error) {
 }
 
 func (s ParcelStore) Get(number int) (Parcel, error) {
-	row := s.db.QueryRow("SELECT client, status, address, created_at FROM parcel WHERE number = :id", sql.Named("id", number))
+	row := s.db.QueryRow("SELECT number, client, status, address, created_at FROM parcel WHERE number = :number", sql.Named("number", number))
 
 	p := Parcel{}
-	err := row.Scan(&p.Client, &p.Status, &p.Address, &p.CreatedAt)
+	err := row.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
 
 	return p, err
 }
@@ -39,20 +40,25 @@ func (s ParcelStore) Get(number int) (Parcel, error) {
 func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	var res []Parcel
 
-	rows, err := s.db.Query("SELECT number, status, address, created_at FROM parcel WHERE client = :id", sql.Named("id", client))
+	rows, err := s.db.Query("SELECT number, client, status, address, created_at FROM parcel WHERE client = :client", sql.Named("client", client))
 	if err != nil {
 		return res, err
 	}
 	defer rows.Close()
 
-	var p Parcel
 	for rows.Next() {
+		var p Parcel
 		p.Client = client
-		err := rows.Scan(&p.Number, &p.Status, &p.Address, &p.CreatedAt)
+		err := rows.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
 		res = append(res, p)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
 	}
 
 	return res, nil
@@ -72,11 +78,14 @@ func (s ParcelStore) SetAddress(number int, address string) error {
 		return err
 	}
 
-	if p.Status == ParcelStatusRegistered {
-		_, err = s.db.Exec("UPDATE parcel SET address = :new_address WHERE number = :id",
-			sql.Named("new_address", address),
-			sql.Named("id", number))
+	if p.Status != ParcelStatusRegistered {
+		err = fmt.Errorf("the expected status of the parcel is %s, but the current status id %s", ParcelStatusRegistered, p.Status)
+		return err
 	}
+
+	_, err = s.db.Exec("UPDATE parcel SET address = :new_address WHERE number = :id",
+		sql.Named("new_address", address),
+		sql.Named("id", number))
 
 	return err
 }
