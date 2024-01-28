@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 )
 
 type ParcelStore struct {
@@ -73,32 +72,18 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 }
 
 func (s ParcelStore) SetAddress(number int, address string) error {
-	p, err := s.Get(number)
-	if err != nil {
-		return err
-	}
-
-	if p.Status != ParcelStatusRegistered {
-		err = fmt.Errorf("the expected status of the parcel is %s, but the current status id %s", ParcelStatusRegistered, p.Status)
-		return err
-	}
-
-	_, err = s.db.Exec("UPDATE parcel SET address = :new_address WHERE number = :id",
+	_, err := s.db.Exec("UPDATE parcel SET address = :new_address WHERE number = :number AND status = :parcel_status_registered",
 		sql.Named("new_address", address),
-		sql.Named("id", number))
+		sql.Named("number", number),
+		sql.Named("parcel_status_registered", ParcelStatusRegistered))
 
 	return err
 }
 
 func (s ParcelStore) Delete(number int) error {
-	p, err := s.Get(number)
-	if err != nil {
-		return err
-	}
-
-	if p.Status == ParcelStatusRegistered {
-		_, err = s.db.Exec("DELETE FROM parcel WHERE number = :id", sql.Named("id", number))
-	}
+	_, err := s.db.Exec("DELETE FROM parcel WHERE number = :number AND status = :parcel_status_registered",
+		sql.Named("number", number),
+		sql.Named("parcel_status_registered", ParcelStatusRegistered))
 
 	return err
 }

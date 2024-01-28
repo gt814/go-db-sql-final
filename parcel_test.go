@@ -47,10 +47,8 @@ func TestAddGetDelete(t *testing.T) {
 	// get
 	p, err := store.Get(id)
 	require.NoError(t, err)
-	assert.Equal(t, parcel.Client, p.Client)
-	assert.Equal(t, parcel.Status, p.Status)
-	assert.Equal(t, parcel.Address, p.Address)
-	assert.Equal(t, parcel.CreatedAt, p.CreatedAt)
+	p.Number = parcel.Number // Приравняем Number, чтобы автоинкремент в базе не мешал сравнению.
+	assert.Equal(t, parcel, p)
 
 	// delete
 	err = store.Delete(id)
@@ -58,6 +56,40 @@ func TestAddGetDelete(t *testing.T) {
 	p, err = store.Get(id)
 	require.Error(t, err)
 	require.Empty(t, p)
+}
+
+// TestAddGetDelete попытку удаления посылки со статусом "sent"
+func TestDeleteWithParcelStatusSent(t *testing.T) {
+	// prepare
+	db, err := sql.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer db.Close()
+
+	store := NewParcelStore(db)
+	parcel := getTestParcel()
+
+	// add
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	// get
+	p, err := store.Get(id)
+	require.NoError(t, err)
+	p.Number = parcel.Number // Приравняем Number, чтобы автоинкремент в базе не мешал сравнению.
+	assert.Equal(t, parcel, p)
+
+	// set status "sent"
+	newStatus := ParcelStatusSent
+	err = store.SetStatus(id, newStatus)
+	require.NoError(t, err)
+
+	// delete
+	err = store.Delete(id)
+	require.NoError(t, err)
+	p, err = store.Get(id)
+	require.NoError(t, err)
+	require.NotEmpty(t, p)
 }
 
 // TestSetAddress проверяет обновление адреса
@@ -84,6 +116,38 @@ func TestSetAddress(t *testing.T) {
 	p, err := store.Get(id)
 	require.NoError(t, err)
 	assert.Equal(t, newAddress, p.Address)
+}
+
+// TestSetAddressWithParcelStatusSent проверяет,
+// что обновление адреса не происходит, если посылка уже в статусе "sent"
+func TestSetAddressWithParcelStatusSent(t *testing.T) {
+	// prepare
+	db, err := sql.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer db.Close()
+
+	store := NewParcelStore(db)
+	parcel := getTestParcel()
+
+	// add
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	// set status "sent"
+	newStatus := ParcelStatusSent
+	err = store.SetStatus(id, newStatus)
+	require.NoError(t, err)
+
+	// set address
+	newAddress := "new test address"
+	err = store.SetAddress(id, newAddress)
+	require.NoError(t, err)
+
+	// check
+	p, err := store.Get(id)
+	require.NoError(t, err)
+	assert.NotEqual(t, newAddress, p.Address)
 }
 
 // TestSetStatus проверяет обновление статуса
@@ -154,10 +218,7 @@ func TestGetByClient(t *testing.T) {
 	for _, parcel := range storedParcels {
 		p, ok := parcelMap[parcel.Number]
 		assert.True(t, ok)
-		assert.Equal(t, parcel.Client, p.Client)
-		assert.Equal(t, parcel.Status, p.Status)
-		assert.Equal(t, parcel.Address, p.Address)
-		assert.Equal(t, parcel.CreatedAt, p.CreatedAt)
-
+		p.Number = parcel.Number // Приравняем Number, чтобы автоинкремент в базе не мешал сравнению.
+		assert.Equal(t, parcel, p)
 	}
 }
